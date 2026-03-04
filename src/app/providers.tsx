@@ -28,25 +28,19 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps): JSX.Element {
-  const { isReady, setToken, clearSession } = useAuthStore((s) => ({
-    isReady: s.isReady,
-    setToken: s.setToken,
-    clearSession: s.clearSession,
-  }));
+  // Selectors separados — NO objeto inline, evita infinite loop en Zustand
+  const isReady = useAuthStore((s) => s.isReady);
 
-  // On first mount, restore session from Supabase storage
-  // This ensures the token is available before any query fires
   useEffect(() => {
+    // Restaura sesión de Supabase al montar, una sola vez
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token) {
-        setToken(session.access_token);
+        useAuthStore.getState().setToken(session.access_token);
       } else {
-        // No session — mark ready so UI can show login screen
         useAuthStore.getState().setReady();
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // [] — solo corre una vez
 
   // Block render until we know the auth state
   // Prevents queries from firing with null token on page reload
