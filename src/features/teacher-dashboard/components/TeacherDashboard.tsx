@@ -36,11 +36,10 @@ interface QRDecoderState {
 
 export function TeacherDashboard(): JSX.Element {
   const { t } = useTranslation();
-  const { profile, accessToken, clearSession } = useAuthStore((s) => ({
-    profile: s.profile,
-    accessToken: s.accessToken,
-    clearSession: s.clearSession,
-  }));
+  // Selectors separados — NO objeto inline, evita infinite loop en Zustand
+  const profile = useAuthStore((s) => s.profile);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const clearSession = useAuthStore((s) => s.clearSession);
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DashboardTab>('exams');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
