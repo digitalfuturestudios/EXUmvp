@@ -1,6 +1,6 @@
 // ============================================================
 // SERVER API CLIENT — Typed fetch wrapper for the Hono backend.
-// All requests go through this module for consistency.
+// Reads JWT from authStore (kept live by onAuthStateChange).
 // ============================================================
 
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -21,15 +21,37 @@ interface ApiResponse<TData> {
   error: string | null;
 }
 
-/** Returns the Authorization header value based on auth state */
+/** Returns a valid JWT for the request */
 async function getAuthHeader(requiresAuth: boolean): Promise<Record<string, string>> {
   if (!requiresAuth) {
     return { Authorization: `Bearer ${publicAnonKey}` };
   }
 
+  // 1. Try token from authStore (kept fresh by onAuthStateChange listener)
+  const { useAuthStore } = await import('../../features/auth/store/authStore');
+  const storedToken = useAuthStore.getState().accessToken;
+  if (storedToken) {
+    return { Authorization: `Bearer ${storedToken}` };
+  }
+
+  // 2. Fallback: ask Supabase directly (handles page reload case)
   const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token ?? publicAnonKey;
-  return { Authorization: `Bearer ${token}` };
+  if (session?.access_token) {
+    // Sync back to store so next call is instant
+    useAuthStore.getState().setToken(session.access_token);
+    return { Authorization: `Bearer ${session.access_token}` };
+  }
+
+  // 3. Last resort: try refreshing the session
+  const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+  if (refreshed?.access_token) {
+    useAuthStore.getState().setToken(refreshed.access_token);
+    return { Authorization: `Bearer ${refreshed.access_token}` };
+  }
+
+  // 4. Truly unauthenticated — use anon key (will 401 on protected routes)
+  console.warn('[API] No valid session found, using anon key');
+  return { Authorization: `Bearer ${publicAnonKey}` };
 }
 
 /** Typed fetch wrapper with error handling */

@@ -36,8 +36,9 @@ interface QRDecoderState {
 
 export function TeacherDashboard(): JSX.Element {
   const { t } = useTranslation();
-  const { profile, clearSession } = useAuthStore((s) => ({
+  const { profile, accessToken, clearSession } = useAuthStore((s) => ({
     profile: s.profile,
+    accessToken: s.accessToken,
     clearSession: s.clearSession,
   }));
   const queryClient = useQueryClient();
@@ -52,7 +53,9 @@ export function TeacherDashboard(): JSX.Element {
   });
 
   // ─── Fetch exams ──────────────────────────────────────────
-  const { data: exams = [], isLoading } = useQuery<ExamWithCount[]>({
+  // Only fires when BOTH profile.id AND accessToken are available.
+  // This prevents the 401 on first render after a page reload.
+  const { data: exams = [], isLoading, error: examsError } = useQuery<ExamWithCount[]>({
     queryKey: ['teacher-exams', profile?.id],
     queryFn: async () => {
       const { data, error } = await apiRequest<ExamWithCount[]>(
@@ -62,8 +65,10 @@ export function TeacherDashboard(): JSX.Element {
       if (error) throw new Error(`Failed to load exams: ${error}`);
       return data ?? [];
     },
-    enabled: Boolean(profile?.id),
+    enabled: Boolean(profile?.id) && Boolean(accessToken), // ← KEY FIX
     staleTime: 30_000,
+    retry: 1,           // max 1 retry to prevent infinite loop
+    retryDelay: 2_000,
   });
 
   // ─── Toggle active ────────────────────────────────────────
@@ -215,6 +220,14 @@ export function TeacherDashboard(): JSX.Element {
             </motion.button>
           )}
         </div>
+
+        {/* Error state */}
+        {examsError && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>Error al cargar exámenes. Intenta recargar la página.</span>
+          </div>
+        )}
 
         {/* Content */}
         <AnimatePresence mode="wait">
