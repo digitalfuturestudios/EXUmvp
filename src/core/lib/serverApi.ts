@@ -1,6 +1,6 @@
 // ============================================================
 // SERVER API CLIENT — Typed fetch wrapper for the Hono backend.
-// Reads JWT from authStore (kept live by onAuthStateChange).
+// Lee el JWT directo de supabase.auth.getSession() siempre.
 // ============================================================
 
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -21,40 +21,30 @@ interface ApiResponse<TData> {
   error: string | null;
 }
 
-/** Returns a valid JWT for the request */
+/** Obtiene siempre el JWT más fresco directo de Supabase */
 async function getAuthHeader(requiresAuth: boolean): Promise<Record<string, string>> {
   if (!requiresAuth) {
     return { Authorization: `Bearer ${publicAnonKey}` };
   }
 
-  // 1. Try token from authStore (kept fresh by onAuthStateChange listener)
-  const { useAuthStore } = await import('../../features/auth/store/authStore');
-  const storedToken = useAuthStore.getState().accessToken;
-  if (storedToken) {
-    return { Authorization: `Bearer ${storedToken}` };
-  }
-
-  // 2. Fallback: ask Supabase directly (handles page reload case)
+  // Siempre pregunta a Supabase directamente — es la fuente de verdad
   const { data: { session } } = await supabase.auth.getSession();
+
   if (session?.access_token) {
-    // Sync back to store so next call is instant
-    useAuthStore.getState().setToken(session.access_token);
     return { Authorization: `Bearer ${session.access_token}` };
   }
 
-  // 3. Last resort: try refreshing the session
+  // Intenta refrescar si no hay sesión activa
   const { data: { session: refreshed } } = await supabase.auth.refreshSession();
   if (refreshed?.access_token) {
-    useAuthStore.getState().setToken(refreshed.access_token);
     return { Authorization: `Bearer ${refreshed.access_token}` };
   }
 
-  // 4. Truly unauthenticated — use anon key (will 401 on protected routes)
-  console.warn('[API] No valid session found, using anon key');
+  console.warn('[API] No valid session — using anon key, expect 401 on protected routes');
   return { Authorization: `Bearer ${publicAnonKey}` };
 }
 
-/** Typed fetch wrapper with error handling */
+/** Typed fetch wrapper con manejo de errores */
 export async function apiRequest<TData, TBody = unknown>(
   path: string,
   options: RequestOptions<TBody> = {},

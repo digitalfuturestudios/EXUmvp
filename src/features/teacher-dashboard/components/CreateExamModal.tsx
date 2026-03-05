@@ -1,6 +1,7 @@
 // ============================================================
-// CreateExamModal — Modal form for creating new exams.
-// Supports bilingual title input.
+// CreateExamModal — Modal para crear exámenes.
+// - Inglés es OPCIONAL: si se deja vacío, se usa el español.
+// - Validación solo requiere contenido en español.
 // ============================================================
 
 import { useState } from 'react';
@@ -43,9 +44,13 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
     mutationFn: async () => {
       if (!profile) throw new Error('No authenticated teacher');
 
+      // Si no hay traducción EN, usar el español como fallback
       const examPayload: ExamInsert = {
         teacher_id: profile.id,
-        title: { es: titleEs, en: titleEn },
+        title: {
+          es: titleEs.trim(),
+          en: titleEn.trim() || titleEs.trim(),
+        },
         description: null,
         duration_minutes: duration,
         passing_score: passingScore,
@@ -60,17 +65,23 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
 
       if (examError || !exam) throw new Error(examError ?? 'Exam creation failed');
 
-      // Create questions
+      // Crear preguntas — EN es opcional, fallback a ES
       await Promise.all(
         questions.map((q, i) => {
           const questionPayload: QuestionInsert = {
             exam_id: exam.id,
-            content: { es: q.content_es, en: q.content_en },
+            content: {
+              es: q.content_es.trim(),
+              en: q.content_en.trim() || q.content_es.trim(),
+            },
             type: q.type,
             options: q.type === 'multiple_choice'
               ? q.options_es.map((label, idx) => ({
                   id: `opt_${idx}`,
-                  label: { es: label, en: q.options_en[idx] ?? label },
+                  label: {
+                    es: label,
+                    en: q.options_en[idx]?.trim() || label, // fallback a ES
+                  },
                 }))
               : null,
             correct_answer: q.correct_answer,
@@ -118,8 +129,11 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
     );
   };
 
-  const isValid = titleEs.trim() && titleEn.trim() && questions.length > 0
-    && questions.every((q) => q.content_es.trim() && q.content_en.trim() && q.correct_answer.trim());
+  // Validación: solo español es obligatorio
+  const isValid =
+    titleEs.trim().length > 0 &&
+    questions.length > 0 &&
+    questions.every((q) => q.content_es.trim().length > 0 && q.correct_answer.trim().length > 0);
 
   return (
     <AnimatePresence>
@@ -149,9 +163,9 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
             </div>
 
             <div className="flex flex-col gap-6">
-              {/* Bilingual titles */}
+              {/* Títulos — EN opcional */}
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Título (ES)">
+                <Field label="Título (ES) *">
                   <input
                     type="text"
                     value={titleEs}
@@ -160,7 +174,7 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
                     className={inputClass}
                   />
                 </Field>
-                <Field label="Title (EN)">
+                <Field label="Title (EN) — opcional">
                   <input
                     type="text"
                     value={titleEn}
@@ -210,7 +224,7 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-4 max-h-96 overflow-y-auto pr-1">
+                <div className="flex max-h-96 flex-col gap-4 overflow-y-auto pr-1">
                   {questions.map((q, i) => (
                     <QuestionDraftCard
                       key={q.id}
@@ -223,6 +237,13 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
                   ))}
                 </div>
               </div>
+
+              {/* Error message */}
+              {createMutation.isError && (
+                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
+                  Error al crear el examen. Intenta de nuevo.
+                </p>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3 pt-2">
@@ -238,7 +259,7 @@ export function CreateExamModal({ isOpen, onClose }: CreateExamModalProps): JSX.
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white disabled:opacity-50 hover:bg-indigo-500"
                 >
                   {createMutation.isPending ? (
-                    <><Loader2 className="size-4 animate-spin" /> Creating...</>
+                    <><Loader2 className="size-4 animate-spin" /> Creando...</>
                   ) : (
                     <><PlusCircle className="size-4" /> {t('dashboard.create_exam')}</>
                   )}
@@ -301,20 +322,21 @@ function QuestionDraftCard({ question, index, onUpdate, onRemove, canRemove }: Q
         </div>
       </div>
 
+      {/* Pregunta — ES obligatorio, EN opcional */}
       <div className="grid gap-2 sm:grid-cols-2">
         <input
           type="text"
           value={question.content_es}
           onChange={(e) => onUpdate({ content_es: e.target.value })}
-          placeholder="Pregunta en español..."
+          placeholder="Pregunta (ES) *"
           className={`${inputClass} text-xs`}
         />
         <input
           type="text"
           value={question.content_en}
           onChange={(e) => onUpdate({ content_en: e.target.value })}
-          placeholder="Question in English..."
-          className={`${inputClass} text-xs`}
+          placeholder="Question (EN) — opcional"
+          className={`${inputClass} text-xs opacity-60 focus:opacity-100`}
         />
       </div>
 
@@ -341,10 +363,11 @@ function QuestionDraftCard({ question, index, onUpdate, onRemove, canRemove }: Q
             type="text"
             value={question.correct_answer}
             onChange={(e) => onUpdate({ correct_answer: e.target.value })}
-            placeholder="Correct answer..."
+            placeholder="Respuesta correcta *"
             className={`${inputClass} mt-1 text-xs`}
           />
         ) : (
+          // Multiple choice — opciones ES obligatorio, EN opcional
           <div className="mt-2 flex flex-col gap-1.5">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex items-center gap-2">
@@ -365,8 +388,8 @@ function QuestionDraftCard({ question, index, onUpdate, onRemove, canRemove }: Q
                     opts[i] = e.target.value;
                     onUpdate({ options_es: opts });
                   }}
-                  placeholder={`Opción ${i + 1} (ES)`}
-                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder-white/20 outline-none"
+                  placeholder={`Opción ${i + 1} *`}
+                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-indigo-500/50"
                 />
                 <input
                   type="text"
@@ -377,7 +400,7 @@ function QuestionDraftCard({ question, index, onUpdate, onRemove, canRemove }: Q
                     onUpdate({ options_en: opts });
                   }}
                   placeholder={`Option ${i + 1} (EN)`}
-                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder-white/20 outline-none"
+                  className="flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/40 placeholder-white/15 outline-none focus:border-indigo-500/30 focus:text-white"
                 />
               </div>
             ))}
