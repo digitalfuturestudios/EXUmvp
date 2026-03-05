@@ -1,6 +1,9 @@
 // ============================================================
 // APP ROOT — Exu Platform MVP
 // Routing: Auth → Teacher Dashboard | Student Exam Lobby → Engine
+//
+// La restauración de sesión vive en providers.tsx.
+// App.tsx solo enruta según el estado del store.
 // ============================================================
 
 import './i18n';
@@ -16,6 +19,10 @@ import { ConnectivityBanner } from '../shared/components/ConnectivityBanner';
 import { PWAInstallBanner } from '../shared/components/PWAInstallBanner';
 import { PWAUpdateNotification } from '../shared/components/PWAUpdateNotification';
 
+// ─────────────────────────────────────────────
+// ROOT ROUTER
+// ─────────────────────────────────────────────
+
 type AppView = 'lobby' | 'teacher-auth';
 
 function AppRouter(): JSX.Element {
@@ -24,26 +31,22 @@ function AppRouter(): JSX.Element {
   const { cachedExam, session } = useExamStore();
   const [view, setView] = useState<AppView>('lobby');
 
-  // ─── NO session check here ───────────────────────────────
-  // providers.tsx ya maneja la restauración del token de Supabase.
-  // App.tsx solo enruta basado en el estado del store.
-
-  // 1. Authenticated teacher → Dashboard
+  // 1. Profesor autenticado → Dashboard
   if (isAuthenticated && role === 'teacher') {
     return <TeacherDashboard />;
   }
 
-  // 2. Active exam session → Engine
+  // 2. Sesión de examen activa → Motor de examen
   if (cachedExam && session && session.status === 'in_progress') {
     return <ExamEngine />;
   }
 
-  // 3. Teacher auth flow
+  // 3. Flujo de login de profesor
   if (view === 'teacher-auth') {
-    return <AuthScreen />;
+    return <AuthScreen onBack={() => setView('lobby')} />;
   }
 
-  // 4. Default: Student lobby with teacher link
+  // 4. Default: Lobby de estudiante con enlace a teacher login
   return <ExamLobbyWithTeacherLink onTeacherClick={() => setView('teacher-auth')} />;
 }
 
@@ -55,24 +58,32 @@ function ExamLobbyWithTeacherLink({ onTeacherClick }: ExamLobbyWithTeacherLinkPr
   return (
     <div className="relative">
       <ExamLobby />
+      {/* Enlace sutil para acceso del profesor */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
         <button
           onClick={onTeacherClick}
           className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/30 backdrop-blur-sm transition-colors hover:border-white/20 hover:text-white/50"
         >
-          Teacher login →
+          Acceso profesor →
         </button>
       </div>
     </div>
   );
 }
 
+// ─────────────────────────────────────────────
+// APP ROOT
+// ─────────────────────────────────────────────
+
 export default function App(): JSX.Element {
   return (
     <Providers>
+      {/* PWA: nueva versión del SW → banner superior */}
       <PWAUpdateNotification />
+      {/* Estado de red → barra superior */}
       <ConnectivityBanner />
       <AppRouter />
+      {/* PWA: prompt de instalación → bottom sheet */}
       <PWAInstallBanner />
     </Providers>
   );

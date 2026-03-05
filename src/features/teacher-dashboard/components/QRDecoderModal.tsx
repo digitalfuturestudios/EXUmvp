@@ -17,6 +17,7 @@ import {
   Save, Loader2, CheckCircle2,
 } from 'lucide-react';
 import LZString from 'lz-string';
+import { useQueryClient } from '@tanstack/react-query';
 import { decryptPayload } from '../../../core/lib/crypto';
 import { apiRequest } from '../../../core/lib/serverApi';
 import { QRCameraScanner } from '../../offline-sync/components/QRCameraScanner';
@@ -61,6 +62,7 @@ export function QRDecoderModal({
   const [copied, setCopied] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({ status: 'idle', message: null });
+  const queryClient = useQueryClient();
 
   // Reset state when modal closes
   const handleClose = (): void => {
@@ -222,6 +224,10 @@ export function QRDecoderModal({
         status: 'saved',
         message: `Resultado guardado — Score verificado: ${score}%`,
       });
+
+      // Invalidar cache de resultados para que el dashboard se refresque
+      queryClient.invalidateQueries({ queryKey: ['exam-results'] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-exams'] });
     } catch (err) {
       console.error('[QRDecoder] Unexpected save error:', err);
       setSaveState({ status: 'error', message: `Error inesperado: ${err}` });

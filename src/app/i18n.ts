@@ -1,7 +1,7 @@
 // ============================================================
 // I18N CONFIGURATION — react-i18next with bundled JSON locales.
 // Uses Vite's static import so Service Worker can cache them.
-// No HTTP requests needed — fully offline capabl.
+// No HTTP requests needed — fully offline capable.
 // ============================================================
 
 import i18n from 'i18next';

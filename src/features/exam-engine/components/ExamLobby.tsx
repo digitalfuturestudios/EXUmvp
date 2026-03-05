@@ -11,6 +11,7 @@ import { setCachedExam, getCachedExam, saveExamCodeMap, getExamIdFromCode } from
 import { useExamStore } from '../store/examStore';
 import { initExamSession } from '../hooks/useResilientTimer';
 import { generateExamCode } from '../../../core/lib/crypto';
+import { useConnectivity } from '../../../shared/hooks/useConnectivity';
 import { LanguageToggle } from '../../../shared/components/LanguageToggle';
 import type { Exam, Question } from '../../../core/types/database.types';
 import type { CachedExam } from '../../../core/types/local.types';
@@ -19,24 +20,28 @@ export function ExamLobby(): JSX.Element {
   const { t, i18n } = useTranslation();
   const initExam = useExamStore((s) => s.initExam);
 
+  // useConnectivity es reactivo — se actualiza cuando cambia la red
+  const { isOnline } = useConnectivity();
+
   const [examCode, setExamCode] = useState('');
   const [studentName, setStudentName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isOnline = navigator.onLine;
 
   const handleJoin = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
+    // Leer navigator.onLine en el momento del click (siempre fresco)
+    const currentlyOnline = navigator.onLine;
     const normalizedCode = examCode.trim().toUpperCase();
 
     try {
       let cachedBundle: CachedExam | null = null;
 
-      // 1. Try to fetch fresh data from server
-      if (isOnline) {
+      // 1. Si hay conexión, intentar obtener datos frescos del servidor
+      if (currentlyOnline) {
         const { data, error: apiError } = await apiRequest<{ exam: Exam; questions: Question[] }>(
           `/exams/code/${normalizedCode}`,
         );
@@ -45,26 +50,25 @@ export function ExamLobby(): JSX.Element {
           await setCachedExam(data.exam, data.questions);
           cachedBundle = await getCachedExam(data.exam.id);
 
-          // Save code→id mapping for future offline access
+          // Guardar mapeo código→id para acceso offline futuro
           const generatedCode = generateExamCode(data.exam.id);
           await saveExamCodeMap(
             generatedCode,
             data.exam.id,
             data.exam.title.es,
-            data.exam.title.en,
+            data.exam.title.en || data.exam.title.es,
             data.exam.duration_minutes,
           );
         } else {
-          console.warn('[ExamLobby] API unavailable, trying local cache');
+          console.warn('[ExamLobby] API no disponible, intentando caché local');
         }
       }
 
-      // 2. If offline or API failed, try the code map to find exam ID
+      // 2. Sin conexión o si falló la API, buscar en el mapa de códigos local
       if (!cachedBundle) {
         const codeMapEntry = await getExamIdFromCode(normalizedCode);
 
         if (codeMapEntry) {
-          // We have the exam ID — try to load from IndexedDB cache
           cachedBundle = await getCachedExam(codeMapEntry.exam_id);
 
           if (!cachedBundle) {
@@ -74,16 +78,20 @@ export function ExamLobby(): JSX.Element {
             );
             return;
           }
-        } else if (!isOnline) {
-          setError('Sin conexión: El examen debe descargarse antes de ir offline. Conéctate e intenta de nuevo.');
+        } else if (!currentlyOnline) {
+          setError(
+            'Sin conexión: El examen debe descargarse antes de ir offline. ' +
+            'Conéctate e intenta de nuevo.'
+          );
           return;
         } else {
+          // Online pero el código no existe o el examen no está activo
           setError(t('exam.not_found'));
           return;
         }
       }
 
-      // 3. Init or recover the exam session
+      // 3. Inicializar o recuperar la sesión del examen
       const studentId = `student_${studentName.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
       const session = await initExamSession(
         cachedBundle.exam.id,
@@ -108,6 +116,7 @@ export function ExamLobby(): JSX.Element {
         <div className="absolute left-1/2 top-1/4 size-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-600/10 blur-3xl" />
       </div>
 
+      {/* Top bar */}
       <div className="absolute right-4 top-4 flex items-center gap-3">
         <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
           isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
@@ -139,7 +148,7 @@ export function ExamLobby(): JSX.Element {
           onSubmit={handleJoin}
           className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl"
         >
-          {/* Name */}
+          {/* Nombre */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
               {t('exam.enter_name')}
@@ -158,7 +167,7 @@ export function ExamLobby(): JSX.Element {
             </div>
           </div>
 
-          {/* Exam Code */}
+          {/* Código de examen */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
               {t('exam.enter_code')}
@@ -200,6 +209,17 @@ export function ExamLobby(): JSX.Element {
             )}
           </motion.button>
         </form>
+
+        {/* Offline hint */}
+        {!isOnline && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-4 text-center text-xs text-amber-400/70"
+          >
+            {t('exam.offline_mode')} — {t('exam.offline_desc')}
+          </motion.p>
+        )}
       </motion.div>
     </div>
   );

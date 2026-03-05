@@ -14,7 +14,11 @@ import type { Profile, UserRole } from '../../../core/types/database.types';
 
 type AuthMode = 'signin' | 'signup';
 
-export function AuthScreen(): JSX.Element {
+interface AuthScreenProps {
+  onBack?: () => void;
+}
+
+export function AuthScreen({ onBack }: AuthScreenProps): JSX.Element {
   const { t } = useTranslation();
   const setSession = useAuthStore((s) => s.setSession);
 
@@ -88,7 +92,15 @@ export function AuthScreen(): JSX.Element {
       </div>
 
       {/* Language toggle */}
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 flex items-center gap-3">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/40 transition-colors hover:border-white/20 hover:text-white/60"
+          >
+            ← Volver
+          </button>
+        )}
         <LanguageToggle />
       </div>
 
