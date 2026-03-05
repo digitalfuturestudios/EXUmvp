@@ -38,7 +38,6 @@ export function TeacherDashboard(): JSX.Element {
   const { t } = useTranslation();
   // Selectors separados — NO objeto inline, evita infinite loop en Zustand
   const profile = useAuthStore((s) => s.profile);
-  const accessToken = useAuthStore((s) => s.accessToken);
   const clearSession = useAuthStore((s) => s.clearSession);
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DashboardTab>('exams');
@@ -64,7 +63,7 @@ export function TeacherDashboard(): JSX.Element {
       if (error) throw new Error(`Failed to load exams: ${error}`);
       return data ?? [];
     },
-    enabled: Boolean(profile?.id) && Boolean(accessToken), // ← KEY FIX
+    enabled: Boolean(profile?.id), // ← KEY FIX
     staleTime: 30_000,
     retry: 1,           // max 1 retry to prevent infinite loop
     retryDelay: 2_000,
