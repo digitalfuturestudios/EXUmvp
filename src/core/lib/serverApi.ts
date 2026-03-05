@@ -1,7 +1,5 @@
 // ============================================================
 // SERVER API CLIENT — Typed fetch wrapper for the Hono backend.
-// Supabase requiere el header 'apikey' en todas las requests
-// a Edge Functions para pasar la verificación de plataforma.
 // ============================================================
 
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -22,49 +20,27 @@ interface ApiResponse<TData> {
   error: string | null;
 }
 
-/** Construye los headers correctos para Supabase Edge Functions */
 async function buildHeaders(requiresAuth: boolean): Promise<Record<string, string>> {
-  // Supabase Edge Functions SIEMPRE necesitan el header 'apikey'
-  // además del Authorization para pasar la verificación de plataforma
-  const baseHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'apikey': publicAnonKey,  // ← requerido por Supabase para todas las requests
-  };
+  const base = { 'Content-Type': 'application/json' };
 
   if (!requiresAuth) {
-    return {
-      ...baseHeaders,
-      'Authorization': `Bearer ${publicAnonKey}`,
-    };
+    return { ...base, 'Authorization': `Bearer ${publicAnonKey}` };
   }
 
-  // Para rutas autenticadas, usar el JWT del usuario
   const { data: { session } } = await supabase.auth.getSession();
-
   if (session?.access_token) {
-    return {
-      ...baseHeaders,
-      'Authorization': `Bearer ${session.access_token}`,
-    };
+    return { ...base, 'Authorization': `Bearer ${session.access_token}` };
   }
 
-  // Intentar refrescar si no hay sesión
   const { data: { session: refreshed } } = await supabase.auth.refreshSession();
   if (refreshed?.access_token) {
-    return {
-      ...baseHeaders,
-      'Authorization': `Bearer ${refreshed.access_token}`,
-    };
+    return { ...base, 'Authorization': `Bearer ${refreshed.access_token}` };
   }
 
-  console.warn('[API] No valid session found');
-  return {
-    ...baseHeaders,
-    'Authorization': `Bearer ${publicAnonKey}`,
-  };
+  console.warn('[API] No valid session — falling back to anon key');
+  return { ...base, 'Authorization': `Bearer ${publicAnonKey}` };
 }
 
-/** Typed fetch wrapper con manejo de errores */
 export async function apiRequest<TData, TBody = unknown>(
   path: string,
   options: RequestOptions<TBody> = {},
