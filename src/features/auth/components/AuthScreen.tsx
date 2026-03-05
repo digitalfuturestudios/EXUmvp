@@ -32,6 +32,7 @@ export function AuthScreen(): JSX.Element {
     setError(null);
 
     try {
+      // 1. Signup si corresponde
       if (mode === 'signup') {
         const { data, error: signupError } = await apiRequest<{ user: { id: string } }>(
           '/auth/signup',
@@ -47,24 +48,29 @@ export function AuthScreen(): JSX.Element {
         }
       }
 
-      const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // 2. Sign in con Supabase — esto guarda la sesión en localStorage
+      const { data: { session }, error: signInError } =
+        await supabase.auth.signInWithPassword({ email, password });
 
       if (signInError || !session) {
         setError(t('auth.error_invalid'));
         return;
       }
 
+      // 3. Obtener perfil usando el token recién obtenido directamente
       const { data: profileData } = await apiRequest<Profile>(
         `/profiles/${session.user.id}`,
-        { requiresAuth: false },
+        { requiresAuth: false },  // El perfil no requiere auth
       );
 
-      if (profileData) {
-        setSession(profileData, session.access_token);
+      if (!profileData) {
+        setError(t('auth.error_generic'));
+        return;
       }
+
+      // 4. Guardar sesión en el store con el token fresco
+      setSession(profileData, session.access_token);
+
     } catch (err) {
       console.error('[AuthScreen] Authentication error:', err);
       setError(t('auth.error_generic'));
