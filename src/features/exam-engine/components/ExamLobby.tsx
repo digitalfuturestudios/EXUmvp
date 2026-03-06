@@ -19,8 +19,6 @@ import type { CachedExam } from '../../../core/types/local.types';
 export function ExamLobby(): JSX.Element {
   const { t, i18n } = useTranslation();
   const initExam = useExamStore((s) => s.initExam);
-
-  // useConnectivity es reactivo — se actualiza cuando cambia la red
   const { isOnline } = useConnectivity();
 
   const [examCode, setExamCode] = useState('');
@@ -33,14 +31,12 @@ export function ExamLobby(): JSX.Element {
     setIsLoading(true);
     setError(null);
 
-    // Leer navigator.onLine en el momento del click (siempre fresco)
     const currentlyOnline = navigator.onLine;
     const normalizedCode = examCode.trim().toUpperCase();
 
     try {
       let cachedBundle: CachedExam | null = null;
 
-      // 1. Si hay conexión, intentar obtener datos frescos del servidor
       if (currentlyOnline) {
         const { data, error: apiError } = await apiRequest<{ exam: Exam; questions: Question[] }>(
           `/exams/code/${normalizedCode}`,
@@ -50,7 +46,6 @@ export function ExamLobby(): JSX.Element {
           await setCachedExam(data.exam, data.questions);
           cachedBundle = await getCachedExam(data.exam.id);
 
-          // Guardar mapeo código→id para acceso offline futuro
           const generatedCode = generateExamCode(data.exam.id);
           await saveExamCodeMap(
             generatedCode,
@@ -64,7 +59,6 @@ export function ExamLobby(): JSX.Element {
         }
       }
 
-      // 2. Sin conexión o si falló la API, buscar en el mapa de códigos local
       if (!cachedBundle) {
         const codeMapEntry = await getExamIdFromCode(normalizedCode);
 
@@ -85,13 +79,11 @@ export function ExamLobby(): JSX.Element {
           );
           return;
         } else {
-          // Online pero el código no existe o el examen no está activo
           setError(t('exam.not_found'));
           return;
         }
       }
 
-      // 3. Inicializar o recuperar la sesión del examen
       const studentId = `student_${studentName.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
       const session = await initExamSession(
         cachedBundle.exam.id,
@@ -144,10 +136,7 @@ export function ExamLobby(): JSX.Element {
           <p className="mt-1 text-sm text-white/40">{t('app.tagline')}</p>
         </div>
 
-        <form
-          onSubmit={handleJoin}
-          className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl"
-        >
+        <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl">
           {/* Nombre */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
@@ -186,20 +175,17 @@ export function ExamLobby(): JSX.Element {
             </div>
           </div>
 
+          {/* Error — div estático, sin motion para evitar bug Android */}
           {error && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400"
-            >
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
               {error}
-            </motion.p>
+            </div>
           )}
 
-          <motion.button
-            type="submit"
+          <button
+            type="button"
+            onClick={handleJoin}
             disabled={isLoading || !studentName.trim() || !examCode.trim()}
-            whileTap={{ scale: 0.98 }}
             className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-opacity disabled:opacity-50"
           >
             {isLoading ? (
@@ -207,18 +193,14 @@ export function ExamLobby(): JSX.Element {
             ) : (
               <><ArrowRight className="size-4" />{t('exam.join_exam')}</>
             )}
-          </motion.button>
-        </form>
+          </button>
+        </div>
 
-        {/* Offline hint */}
+        {/* Offline hint — div estático, sin motion */}
         {!isOnline && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4 text-center text-xs text-amber-400/70"
-          >
+          <p className="mt-4 text-center text-xs text-amber-400/70">
             {t('exam.offline_mode')} — {t('exam.offline_desc')}
-          </motion.p>
+          </p>
         )}
       </motion.div>
     </div>
