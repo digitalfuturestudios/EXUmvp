@@ -6,24 +6,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
-    // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
 
-    // ─── Progressive Web App ───────────────────────────────────────────────
     VitePWA({
-      registerType: 'autoUpdate', // Auto-registers SW; new versions wait until user navigates
-
-      // Assets to include in the precache manifest
+      registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'favicon.svg'],
 
-      // ─── Web App Manifest ───────────────────────────────────────────────
       manifest: {
         name: 'Exu — Plataforma de Exámenes',
         short_name: 'Exu',
-        description:
-          'Plataforma educativa offline-first para exámenes seguros con entrega QR encriptada.',
+        description: 'Plataforma educativa offline-first para exámenes seguros con entrega QR encriptada.',
         theme_color: '#4f46e5',
         background_color: '#020817',
         display: 'standalone',
@@ -33,18 +26,8 @@ export default defineConfig({
         lang: 'es',
         categories: ['education', 'productivity'],
         icons: [
-          {
-            src: 'icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: 'icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'maskable',
-          },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
         shortcuts: [
           {
@@ -55,72 +38,52 @@ export default defineConfig({
             icons: [{ src: 'icon.svg', sizes: 'any' }],
           },
         ],
-        // Display override for iOS Safari
         display_override: ['standalone', 'minimal-ui', 'browser'],
       },
 
-      // ─── Workbox Caching Strategies ─────────────────────────────────────
       workbox: {
-        // Files to precache (app shell)
-        globPatterns: ['**/*.{js,css,html,svg,woff2,woff,ttf}'],
+        // Solo precachear lo esencial — menos peso inicial
+        globPatterns: ['**/*.{js,css,html,svg}'],
+        // Excluir fuentes pesadas del precache (se cachean en runtime)
+        globIgnores: ['**/*.{woff,woff2,ttf,eot}'],
 
-        // skipWaiting: false → new SW waits for existing tabs to close
-        // This is CRITICAL for exam integrity: never auto-reload mid-exam.
         skipWaiting: false,
         clientsClaim: true,
 
-        // Runtime caching rules (in priority order)
         runtimeCaching: [
           {
-            // Supabase Edge Functions / API — NetworkFirst with 10s fallback
+            // API Supabase — NetworkFirst con timeout CORTO para baja señal
             urlPattern: /^https:\/\/[a-z0-9]+\.supabase\.co\/functions\//,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'exu-api-cache',
-              networkTimeoutSeconds: 10,
+              networkTimeoutSeconds: 4, // ← 4s en vez de 10s
               expiration: {
                 maxEntries: 60,
-                maxAgeSeconds: 60 * 60, // 1 hour
+                maxAgeSeconds: 60 * 60,
               },
               cacheableResponse: {
-                statuses: [0, 200],
-              },
-              // Only cache GET requests
-              matchOptions: {
-                ignoreVary: true,
+                statuses: [200], // ← Solo cachear 200, NO status 0 ni errores
               },
             },
           },
           {
-            // Supabase Auth — NetworkOnly (NEVER cache auth tokens)
+            // Auth — NUNCA cachear
             urlPattern: /^https:\/\/[a-z0-9]+\.supabase\.co\/auth\//,
             handler: 'NetworkOnly',
           },
           {
-            // Supabase Storage (signed URLs) — NetworkFirst short TTL
-            urlPattern: /^https:\/\/[a-z0-9]+\.supabase\.co\/storage\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'exu-storage-cache',
-              networkTimeoutSeconds: 8,
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 30, // 30 min
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Google Fonts stylesheets — StaleWhileRevalidate
+            // Google Fonts CSS — StaleWhileRevalidate (sirve caché inmediato)
             urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'google-fonts-stylesheets',
               expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
-            // Google Fonts webfonts — CacheFirst (immutable)
+            // Google Fonts archivos — CacheFirst (inmutables)
             urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
             handler: 'CacheFirst',
             options: {
@@ -133,7 +96,7 @@ export default defineConfig({
             },
           },
           {
-            // CDN / unpkg assets — CacheFirst
+            // CDN assets — CacheFirst
             urlPattern: /^https:\/\/(cdn|unpkg|cdnjs)\./,
             handler: 'CacheFirst',
             options: {
@@ -147,17 +110,13 @@ export default defineConfig({
           },
         ],
 
-        // Offline fallback: serve index.html for navigation requests
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [
-          // Don't cache API routes
           /^\/api\//,
-          // Don't cache Supabase routes
           /^https:\/\/[a-z0-9]+\.supabase\.co\//,
         ],
       },
 
-      // ─── Dev mode (enabled for SW testing in development) ───────────────
       devOptions: {
         enabled: true,
         type: 'module',
@@ -168,11 +127,32 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
   },
 
-  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
+  // ─── Build optimizations para baja señal ─────────────────────────────
+  build: {
+    // Dividir el bundle en chunks más pequeños
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks separados — se cachean independientemente
+          'react-vendor': ['react', 'react-dom'],
+          'motion': ['motion/react'],
+          'query': ['@tanstack/react-query'],
+          'supabase': ['@supabase/supabase-js'],
+          'i18n': ['i18next', 'react-i18next'],
+          'crypto': ['crypto-js'],
+          'ui': ['lucide-react', 'sonner'],
+        },
+      },
+    },
+    // Comprimir más agresivamente
+    minify: 'esbuild',
+    // Tamaño de chunk warning a 400kb
+    chunkSizeWarningLimit: 400,
+  },
+
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })

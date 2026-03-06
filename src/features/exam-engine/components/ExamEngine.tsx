@@ -31,7 +31,6 @@ export function ExamEngine(): JSX.Element {
 
   const { state: deliveryState, finishExam } = useOfflineDelivery();
 
-  // ─── Guard ────────────────────────────────────────────────
   const guard = useExuGuard({
     examId: session?.exam_id ?? '',
     studentId: session?.student_id ?? '',
@@ -41,7 +40,6 @@ export function ExamEngine(): JSX.Element {
     },
   });
 
-  // ─── Timer ────────────────────────────────────────────────
   const timerState = useResilientTimer({
     session,
     durationSeconds: (cachedExam?.exam.duration_minutes ?? 0) * 60,
@@ -51,7 +49,6 @@ export function ExamEngine(): JSX.Element {
     },
   });
 
-  // ─── Score Calculation ────────────────────────────────────
   const calculateScore = useCallback((): { score: number; earned: number; total: number } => {
     if (!cachedExam || !session) return { score: 0, earned: 0, total: 0 };
 
@@ -70,7 +67,6 @@ export function ExamEngine(): JSX.Element {
     return { score, earned, total };
   }, [cachedExam, session]);
 
-  // ─── Submit Handler ───────────────────────────────────────
   const handleSubmit = useCallback(async (forced: boolean = false): Promise<void> => {
     if (!session || !cachedExam) return;
     setSubmitting(true);
@@ -105,7 +101,6 @@ export function ExamEngine(): JSX.Element {
     }
   }, [session, cachedExam, calculateScore, finishExam, setSubmitting, setFinished]);
 
-  // ─── Guard: Early returns for invalid states ──────────────
   if (!cachedExam || !session) return <></>;
 
   const questions = cachedExam.questions;
@@ -123,7 +118,6 @@ export function ExamEngine(): JSX.Element {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-lg"
         >
-          {/* Score banner */}
           <div className={`mb-6 rounded-2xl border p-6 text-center ${
             passed
               ? 'border-emerald-500/30 bg-emerald-500/10'
@@ -138,7 +132,6 @@ export function ExamEngine(): JSX.Element {
             </p>
           </div>
 
-          {/* QR Panel */}
           <QRDeliveryPanel
             payload={qrPayload}
             studentName={session.student_name}
@@ -155,13 +148,9 @@ export function ExamEngine(): JSX.Element {
     <div className="relative flex min-h-screen flex-col bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
       <GuardOverlay guard={guard} />
 
-      {/* Fullscreen prompt */}
+      {/* Fullscreen prompt — div estático, sin motion condicional */}
       {!guard.isFullscreen && guard.status === 'active' && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed bottom-4 right-4 z-40"
-        >
+        <div className="fixed bottom-4 right-4 z-40">
           <button
             onClick={guard.requestFullscreen}
             className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-900/80 px-4 py-2.5 text-sm font-medium text-indigo-300 backdrop-blur-sm hover:bg-indigo-800/80"
@@ -169,7 +158,7 @@ export function ExamEngine(): JSX.Element {
             <Maximize className="size-4" />
             {t('guard.fullscreen_enter')}
           </button>
-        </motion.div>
+        </div>
       )}
 
       {/* Header */}
@@ -182,7 +171,6 @@ export function ExamEngine(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Strike indicators */}
           <div className="flex gap-1">
             {Array.from({ length: guard.maxStrikes }).map((_, i) => (
               <div
@@ -193,24 +181,22 @@ export function ExamEngine(): JSX.Element {
               />
             ))}
           </div>
-
           <TimerDisplay timerState={timerState} compact />
         </div>
       </header>
 
-      {/* Progress bar */}
+      {/* Progress bar — div estático con width dinámico via style */}
       <div className="h-0.5 bg-white/5">
-        <motion.div
-          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
-          animate={{ width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%` }}
-          transition={{ ease: 'easeOut', duration: 0.3 }}
+        <div
+          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
+          style={{ width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%` }}
         />
       </div>
 
       {/* Question area */}
       <main className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-2xl py-8">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             <QuestionCard
               key={currentQuestion?.id}
               question={currentQuestion}
@@ -252,23 +238,23 @@ export function ExamEngine(): JSX.Element {
             ))}
           </div>
 
+          {/* Botón siguiente/enviar — sin motion.button para compatibilidad Android */}
           {currentQuestionIndex < totalQuestions - 1 ? (
             <button
               onClick={() => setCurrentQuestion(currentQuestionIndex + 1)}
-              className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/20"
+              className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-white/20 active:scale-95"
             >
               {t('exam.next_question')}
               <ChevronRight className="size-4" />
             </button>
           ) : (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
+            <button
               onClick={() => setShowConfirm(true)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform"
             >
               <Send className="size-4" />
               {t('exam.submit')}
-            </motion.button>
+            </button>
           )}
         </div>
       </footer>
@@ -284,6 +270,7 @@ export function ExamEngine(): JSX.Element {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           >
             <motion.div
+              key="confirm-modal-inner"
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
