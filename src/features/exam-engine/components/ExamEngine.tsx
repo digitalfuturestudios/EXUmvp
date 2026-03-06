@@ -148,19 +148,6 @@ export function ExamEngine(): JSX.Element {
     <div className="relative flex min-h-screen flex-col bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
       <GuardOverlay guard={guard} />
 
-      {/* Fullscreen prompt — div estático, sin motion condicional */}
-      {!guard.isFullscreen && guard.status === 'active' && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <button
-            onClick={guard.requestFullscreen}
-            className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-900/80 px-4 py-2.5 text-sm font-medium text-indigo-300 backdrop-blur-sm hover:bg-indigo-800/80"
-          >
-            <Maximize className="size-4" />
-            {t('guard.fullscreen_enter')}
-          </button>
-        </div>
-      )}
-
       {/* Header */}
       <header className="flex items-center justify-between border-b border-white/5 bg-black/20 px-6 py-4 backdrop-blur-md">
         <div>
@@ -171,6 +158,17 @@ export function ExamEngine(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Fullscreen button — en el header, nunca tapa el footer */}
+          {!guard.isFullscreen && guard.status === 'active' && (
+            <button
+              onClick={guard.requestFullscreen}
+              className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-900/60 px-3 py-1.5 text-xs font-medium text-indigo-300 hover:bg-indigo-800/80"
+            >
+              <Maximize className="size-3.5" />
+              {t('guard.fullscreen_enter')}
+            </button>
+          )}
+
           <div className="flex gap-1">
             {Array.from({ length: guard.maxStrikes }).map((_, i) => (
               <div
