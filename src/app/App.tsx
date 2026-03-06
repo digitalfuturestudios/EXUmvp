@@ -18,6 +18,7 @@ import { TeacherDashboard } from '../features/teacher-dashboard/components/Teach
 import { ConnectivityBanner } from '../shared/components/ConnectivityBanner';
 import { PWAInstallBanner } from '../shared/components/PWAInstallBanner';
 import { PWAUpdateNotification } from '../shared/components/PWAUpdateNotification';
+import { ErrorBoundary } from '../shared/components/ErrorBoundary';
 
 // ─────────────────────────────────────────────
 // ROOT ROUTER
@@ -77,6 +78,7 @@ function ExamLobbyWithTeacherLink({ onTeacherClick }: ExamLobbyWithTeacherLinkPr
 
 export default function App(): JSX.Element {
   return (
+    <ErrorBoundary>
     <Providers>
       {/* PWA: nueva versión del SW → banner superior */}
       <PWAUpdateNotification />
@@ -86,5 +88,6 @@ export default function App(): JSX.Element {
       {/* PWA: prompt de instalación → bottom sheet */}
       <PWAInstallBanner />
     </Providers>
+    </ErrorBoundary>
   );
 }
