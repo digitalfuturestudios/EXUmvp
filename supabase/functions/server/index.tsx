@@ -16,7 +16,7 @@ app.use(
   '/*',
   cors({
     origin: '*',
-    allowHeaders: ['Content-Type', 'Authorization', 'apikey'], // ← apikey agregado
+    allowHeaders: ['Content-Type', 'Authorization', 'apikey'],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     exposeHeaders: ['Content-Length'],
     maxAge: 600,
@@ -74,28 +74,20 @@ app.post('/make-server-cd016e9d/auth/signup', async (c) => {
     });
 
     if (userError || !userData.user) {
-      console.error('[signup] User creation failed:', userError);
       return c.json({ error: `User creation failed: ${userError?.message}` }, 400);
     }
 
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert({
-        id: userData.user.id,
-        full_name,
-        role,
-        preferred_language: 'es',
-      });
+      .insert({ id: userData.user.id, full_name, role, preferred_language: 'es' });
 
     if (profileError) {
-      console.error('[signup] Profile creation failed:', profileError);
       await supabase.auth.admin.deleteUser(userData.user.id);
       return c.json({ error: `Profile creation failed: ${profileError.message}` }, 500);
     }
 
     return c.json({ user: { id: userData.user.id, email } }, 201);
   } catch (err) {
-    console.error('[signup] Unexpected error:', err);
     return c.json({ error: `Signup error: ${err}` }, 500);
   }
 });
@@ -106,19 +98,11 @@ app.get('/make-server-cd016e9d/profiles/:id', async (c) => {
     const supabase = getAdminClient();
 
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+      .from('profiles').select('*').eq('id', userId).single();
 
-    if (error || !data) {
-      console.error('[profiles] Fetch failed:', error);
-      return c.json({ error: `Profile not found: ${error?.message}` }, 404);
-    }
-
+    if (error || !data) return c.json({ error: `Profile not found: ${error?.message}` }, 404);
     return c.json(data);
   } catch (err) {
-    console.error('[profiles] Unexpected error:', err);
     return c.json({ error: `Profile fetch error: ${err}` }, 500);
   }
 });
@@ -128,22 +112,11 @@ app.get('/make-server-cd016e9d/exams', async (c) => {
     const teacherId = c.req.query('teacher_id');
     const supabase = getAdminClient();
 
-    let query = supabase.from('exams').select(`
-      *,
-      question_count:questions(count),
-      result_count:results(count)
-    `);
-
-    if (teacherId) {
-      query = query.eq('teacher_id', teacherId);
-    }
+    let query = supabase.from('exams').select(`*, question_count:questions(count), result_count:results(count)`);
+    if (teacherId) query = query.eq('teacher_id', teacherId);
 
     const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[exams] List failed:', error);
-      return c.json({ error: `Failed to list exams: ${error.message}` }, 500);
-    }
+    if (error) return c.json({ error: `Failed to list exams: ${error.message}` }, 500);
 
     const exams = (data ?? []).map((e: any) => ({
       ...e,
@@ -153,7 +126,6 @@ app.get('/make-server-cd016e9d/exams', async (c) => {
 
     return c.json(exams);
   } catch (err) {
-    console.error('[exams] Unexpected error:', err);
     return c.json({ error: `Exam list error: ${err}` }, 500);
   }
 });
@@ -164,16 +136,11 @@ app.get('/make-server-cd016e9d/exams/code/:code', async (c) => {
     const supabase = getAdminClient();
 
     const { data: exams, error: examError } = await supabase
-      .from('exams')
-      .select('*')
-      .eq('is_active', true);
+      .from('exams').select('*').eq('is_active', true);
 
-    if (examError) {
-      return c.json({ error: `Exam lookup failed: ${examError.message}` }, 500);
-    }
+    if (examError) return c.json({ error: `Exam lookup failed: ${examError.message}` }, 500);
 
     const encoder = new TextEncoder();
-
     const matchedExam = await (async () => {
       for (const exam of (exams ?? [])) {
         const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(exam.id));
@@ -185,23 +152,15 @@ app.get('/make-server-cd016e9d/exams/code/:code', async (c) => {
       return null;
     })();
 
-    if (!matchedExam) {
-      return c.json({ error: `No active exam found with code: ${code}` }, 404);
-    }
+    if (!matchedExam) return c.json({ error: `No active exam found with code: ${code}` }, 404);
 
     const { data: questions, error: questionsError } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('exam_id', matchedExam.id)
-      .order('order_index');
+      .from('questions').select('*').eq('exam_id', matchedExam.id).order('order_index');
 
-    if (questionsError) {
-      return c.json({ error: `Failed to fetch questions: ${questionsError.message}` }, 500);
-    }
+    if (questionsError) return c.json({ error: `Failed to fetch questions: ${questionsError.message}` }, 500);
 
     return c.json({ exam: matchedExam, questions: questions ?? [] });
   } catch (err) {
-    console.error('[exams/code] Unexpected error:', err);
     return c.json({ error: `Exam code lookup error: ${err}` }, 500);
   }
 });
@@ -215,19 +174,11 @@ app.post('/make-server-cd016e9d/exams', async (c) => {
     const supabase = getAdminClient();
 
     const { data, error } = await supabase
-      .from('exams')
-      .insert({ ...body, teacher_id: userId })
-      .select()
-      .single();
+      .from('exams').insert({ ...body, teacher_id: userId }).select().single();
 
-    if (error) {
-      console.error('[exams] Create failed:', error);
-      return c.json({ error: `Exam creation failed: ${error.message}` }, 400);
-    }
-
+    if (error) return c.json({ error: `Exam creation failed: ${error.message}` }, 400);
     return c.json(data, 201);
   } catch (err) {
-    console.error('[exams] Create unexpected error:', err);
     return c.json({ error: `Exam create error: ${err}` }, 500);
   }
 });
@@ -244,19 +195,11 @@ app.patch('/make-server-cd016e9d/exams/:id', async (c) => {
     const { data, error } = await supabase
       .from('exams')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', examId)
-      .eq('teacher_id', userId)
-      .select()
-      .single();
+      .eq('id', examId).eq('teacher_id', userId).select().single();
 
-    if (error) {
-      console.error('[exams] Update failed:', error);
-      return c.json({ error: `Exam update failed: ${error.message}` }, 400);
-    }
-
+    if (error) return c.json({ error: `Exam update failed: ${error.message}` }, 400);
     return c.json(data);
   } catch (err) {
-    console.error('[exams] Update unexpected error:', err);
     return c.json({ error: `Exam update error: ${err}` }, 500);
   }
 });
@@ -270,28 +213,16 @@ app.delete('/make-server-cd016e9d/exams/:id', async (c) => {
     const supabase = getAdminClient();
 
     const { data: exam } = await supabase
-      .from('exams')
-      .select('teacher_id')
-      .eq('id', examId)
-      .single();
+      .from('exams').select('teacher_id').eq('id', examId).single();
 
     if (!exam || exam.teacher_id !== userId) {
       return c.json({ error: 'Unauthorized: you do not own this exam' }, 403);
     }
 
-    const { error } = await supabase
-      .from('exams')
-      .delete()
-      .eq('id', examId);
-
-    if (error) {
-      console.error('[exams] Delete failed:', error);
-      return c.json({ error: `Exam deletion failed: ${error.message}` }, 400);
-    }
-
+    const { error } = await supabase.from('exams').delete().eq('id', examId);
+    if (error) return c.json({ error: `Exam deletion failed: ${error.message}` }, 400);
     return c.json({ success: true }, 200);
   } catch (err) {
-    console.error('[exams] Delete unexpected error:', err);
     return c.json({ error: `Exam delete error: ${err}` }, 500);
   }
 });
@@ -301,20 +232,19 @@ app.post('/make-server-cd016e9d/results', async (c) => {
     const body = await c.req.json();
     const supabase = getAdminClient();
 
+    // Asegurar que cedula y section se guarden
+    const resultData = {
+      ...body,
+      cedula: body.cedula ?? null,
+      section: body.section ?? null,
+    };
+
     const { data, error } = await supabase
-      .from('results')
-      .insert(body)
-      .select()
-      .single();
+      .from('results').insert(resultData).select().single();
 
-    if (error) {
-      console.error('[results] Insert failed:', error);
-      return c.json({ error: `Result submission failed: ${error.message}` }, 400);
-    }
-
+    if (error) return c.json({ error: `Result submission failed: ${error.message}` }, 400);
     return c.json(data, 201);
   } catch (err) {
-    console.error('[results] Unexpected error:', err);
     return c.json({ error: `Result submit error: ${err}` }, 500);
   }
 });
@@ -325,21 +255,18 @@ app.get('/make-server-cd016e9d/results', async (c) => {
     if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const examId = c.req.query('exam_id');
+    const section = c.req.query('section');
     const supabase = getAdminClient();
 
     let query = supabase.from('results').select('*');
     if (examId) query = query.eq('exam_id', examId);
+    if (section) query = query.eq('section', section);
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await query.order('section').order('student_name');
 
-    if (error) {
-      console.error('[results] Fetch failed:', error);
-      return c.json({ error: `Results fetch failed: ${error.message}` }, 500);
-    }
-
+    if (error) return c.json({ error: `Results fetch failed: ${error.message}` }, 500);
     return c.json(data ?? []);
   } catch (err) {
-    console.error('[results] Unexpected error:', err);
     return c.json({ error: `Results fetch error: ${err}` }, 500);
   }
 });
@@ -353,29 +280,18 @@ app.post('/make-server-cd016e9d/questions', async (c) => {
     const supabase = getAdminClient();
 
     const { data: exam } = await supabase
-      .from('exams')
-      .select('teacher_id')
-      .eq('id', body.exam_id)
-      .single();
+      .from('exams').select('teacher_id').eq('id', body.exam_id).single();
 
     if (!exam || exam.teacher_id !== userId) {
       return c.json({ error: 'Unauthorized: you do not own this exam' }, 403);
     }
 
     const { data, error } = await supabase
-      .from('questions')
-      .insert(body)
-      .select()
-      .single();
+      .from('questions').insert(body).select().single();
 
-    if (error) {
-      console.error('[questions] Create failed:', error);
-      return c.json({ error: `Question creation failed: ${error.message}` }, 400);
-    }
-
+    if (error) return c.json({ error: `Question creation failed: ${error.message}` }, 400);
     return c.json(data, 201);
   } catch (err) {
-    console.error('[questions] Create unexpected error:', err);
     return c.json({ error: `Question create error: ${err}` }, 500);
   }
 });
@@ -383,36 +299,21 @@ app.post('/make-server-cd016e9d/questions', async (c) => {
 app.get('/make-server-cd016e9d/questions', async (c) => {
   try {
     const examId = c.req.query('exam_id');
-    if (!examId) {
-      return c.json({ error: 'exam_id query parameter is required' }, 400);
-    }
+    if (!examId) return c.json({ error: 'exam_id query parameter is required' }, 400);
 
     const supabase = getAdminClient();
 
     const { data: exam } = await supabase
-      .from('exams')
-      .select('id, is_active, teacher_id')
-      .eq('id', examId)
-      .single();
+      .from('exams').select('id, is_active, teacher_id').eq('id', examId).single();
 
-    if (!exam) {
-      return c.json({ error: `Exam not found: ${examId}` }, 404);
-    }
+    if (!exam) return c.json({ error: `Exam not found: ${examId}` }, 404);
 
     const { data, error } = await supabase
-      .from('questions')
-      .select('*')
-      .eq('exam_id', examId)
-      .order('order_index');
+      .from('questions').select('*').eq('exam_id', examId).order('order_index');
 
-    if (error) {
-      console.error('[questions] Fetch failed:', error);
-      return c.json({ error: `Failed to fetch questions: ${error.message}` }, 500);
-    }
-
+    if (error) return c.json({ error: `Failed to fetch questions: ${error.message}` }, 500);
     return c.json(data ?? []);
   } catch (err) {
-    console.error('[questions] Fetch unexpected error:', err);
     return c.json({ error: `Questions fetch error: ${err}` }, 500);
   }
 });

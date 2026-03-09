@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { KeyRound, User, ArrowRight, Loader2, WifiOff, Wifi } from 'lucide-react';
+import { KeyRound, User, ArrowRight, Loader2, WifiOff, Wifi, CreditCard, BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiRequest } from '../../../core/lib/serverApi';
 import { setCachedExam, getCachedExam, saveExamCodeMap, getExamIdFromCode } from '../../../core/db/ExuLocalDB';
@@ -23,11 +23,18 @@ export function ExamLobby(): JSX.Element {
 
   const [examCode, setExamCode] = useState('');
   const [studentName, setStudentName] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [section, setSection] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleJoin = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault();
+  const handleJoin = async (): Promise<void> => {
+    // Validar campos obligatorios
+    if (!studentName.trim() || !examCode.trim() || !cedula.trim() || !section.trim()) {
+      setError('Todos los campos son obligatorios.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -64,7 +71,6 @@ export function ExamLobby(): JSX.Element {
 
         if (codeMapEntry) {
           cachedBundle = await getCachedExam(codeMapEntry.exam_id);
-
           if (!cachedBundle) {
             setError(
               `Offline: Se encontró el examen "${codeMapEntry.title_es}" pero el contenido no está en caché. ` +
@@ -73,10 +79,7 @@ export function ExamLobby(): JSX.Element {
             return;
           }
         } else if (!currentlyOnline) {
-          setError(
-            'Sin conexión: El examen debe descargarse antes de ir offline. ' +
-            'Conéctate e intenta de nuevo.'
-          );
+          setError('Sin conexión: El examen debe descargarse antes de ir offline. Conéctate e intenta de nuevo.');
           return;
         } else {
           setError(t('exam.not_found'));
@@ -89,6 +92,8 @@ export function ExamLobby(): JSX.Element {
         cachedBundle.exam.id,
         studentId,
         studentName.trim(),
+        cedula.trim(),
+        section.trim(),
         i18n.language as 'es' | 'en',
       );
 
@@ -100,6 +105,8 @@ export function ExamLobby(): JSX.Element {
       setIsLoading(false);
     }
   };
+
+  const canSubmit = studentName.trim() && examCode.trim() && cedula.trim() && section.trim();
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 p-4">
@@ -128,7 +135,7 @@ export function ExamLobby(): JSX.Element {
         className="relative w-full max-w-sm"
       >
         {/* Logo */}
-        <div className="mb-10 text-center">
+        <div className="mb-8 text-center">
           <div className="mb-3 inline-flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/30">
             <span className="text-3xl font-black text-white">E</span>
           </div>
@@ -136,11 +143,12 @@ export function ExamLobby(): JSX.Element {
           <p className="mt-1 text-sm text-white/40">{t('app.tagline')}</p>
         </div>
 
-        <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl">
+        <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+
           {/* Nombre */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
-              {t('exam.enter_name')}
+              Nombre y Apellido
             </label>
             <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/20">
               <User className="size-4 shrink-0 text-white/30" />
@@ -151,6 +159,42 @@ export function ExamLobby(): JSX.Element {
                 placeholder="Ana García"
                 required
                 minLength={2}
+                className="flex-1 bg-transparent text-sm text-white placeholder-white/20 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Cédula */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
+              Cédula / ID
+            </label>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/20">
+              <CreditCard className="size-4 shrink-0 text-white/30" />
+              <input
+                type="text"
+                value={cedula}
+                onChange={(e) => setCedula(e.target.value)}
+                placeholder="V-28.341.123"
+                required
+                className="flex-1 bg-transparent text-sm text-white placeholder-white/20 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Sección */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-white/40">
+              Sección
+            </label>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/20">
+              <BookOpen className="size-4 shrink-0 text-white/30" />
+              <input
+                type="text"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                placeholder="3A, Sección B..."
+                required
                 className="flex-1 bg-transparent text-sm text-white placeholder-white/20 outline-none"
               />
             </div>
@@ -175,7 +219,7 @@ export function ExamLobby(): JSX.Element {
             </div>
           </div>
 
-          {/* Error — div estático, sin motion para evitar bug Android */}
+          {/* Error */}
           {error && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
               {error}
@@ -185,8 +229,8 @@ export function ExamLobby(): JSX.Element {
           <button
             type="button"
             onClick={handleJoin}
-            disabled={isLoading || !studentName.trim() || !examCode.trim()}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-opacity disabled:opacity-50"
+            disabled={isLoading || !canSubmit}
+            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-opacity disabled:opacity-50 active:scale-95"
           >
             {isLoading ? (
               <><Loader2 className="size-4 animate-spin" />{t('exam.loading')}</>
@@ -196,7 +240,6 @@ export function ExamLobby(): JSX.Element {
           </button>
         </div>
 
-        {/* Offline hint — div estático, sin motion */}
         {!isOnline && (
           <p className="mt-4 text-center text-xs text-amber-400/70">
             {t('exam.offline_mode')} — {t('exam.offline_desc')}
